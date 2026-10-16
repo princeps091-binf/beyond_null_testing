@@ -1,0 +1,22 @@
+[workspace]
+authors = ["princeps091-binf <princep091@gmail.com>"]
+channels = ["conda-forge","bioconda"]
+name = "beyond_null_testing"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+r-base = "4.5.*"
+r-renv = ">=1.3.1,<2"
+r-tidyverse = ">=2.0.0,<3"
+bioconductor-annotationhub = ">=4.0.0,<5"
+bioconductor-genomicranges = ">=1.62.1,<2"
+bioconductor-rtracklayer = ">=1.70.1,<2"
+bioconductor-genomeinfodb = ">=1.46.2,<2"
+bioconductor-genomeinfodbdata = ">=1.2.15,<2"
+"bioconductor-txdb.hsapiens.ucsc.hg38.knowngene" = ">=3.22.0,<4"
+"bioconductor-bsgenome.hsapiens.ucsc.hg38" = ">=1.4.5,<2"
+r-mass = ">=7.3_66,<8"
+r-languageserver = ">=0.3.20,<0.4"
