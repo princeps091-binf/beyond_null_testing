@@ -191,6 +191,27 @@ fit_controlled <- lm(
 )
 summary(fit_controlled)$coefficients
 
+
+# %%
+
+cor(residuals(fit_naive), data_tbl$gc_content)
+cor(residuals(fit_controlled), data_tbl$gc_content)
+
+# %%
+
+data_tbl|>mutate(ctrl_residuals = fit_controlled$residuals,ctrl_pred = fit_controlled$fitted.values,naive_residuals = fit_naive$residuals, naive_pred = fit_naive$fitted.values)|>ggplot(aes(x=gc_content,y=ctrl_residuals,color=dnase_peak))+geom_point()
+
+# %%
+
+fit_interaction <- lm(
+  active_ip_signal ~ dnase_peak + gc_content + dnase_peak * gc_content, 
+  data = data_tbl
+)
+summary(fit_interaction)$coefficients
+
+# %%
+
+data_tbl|>mutate(inter_residuals = fit_interaction$residuals,inter_pred = fit_interaction$fitted.values,naive_residuals = fit_naive$residuals, naive_pred = fit_naive$fitted.values)|>ggplot(aes(x=gc_content,y=inter_residuals,color=dnase_peak))+geom_point()
 # %%
 data_tbl|>mutate(residuals = fit_controlled$residuals,pred = fit_controlled$fitted.values)|>ggplot(aes(x=pred,y=residuals))+geom_point()
 
@@ -200,7 +221,7 @@ data_tbl <- data_tbl |> mutate(logy = log(active_ip_signal))
 
 
 fit_log_controlled <- lm(
-  logy ~ dnase_peak + gc_content, 
+  logy ~ dnase_peak + gc_content + dnase_peak * gc_content, 
   data = data_tbl
 )
 summary(fit_log_controlled)$coefficients
@@ -209,12 +230,27 @@ summary(fit_log_controlled)$coefficients
 data_tbl|>mutate(residuals = fit_log_controlled$residuals,pred = fit_log_controlled$fitted.values)|>ggplot(aes(x=pred,y=residuals))+geom_point()
 
 # %%
+
+data_tbl|>mutate(log_residuals = fit_log_controlled$residuals,log_pred = fit_log_controlled$fitted.values,naive_residuals = fit_naive$residuals, naive_pred = fit_naive$fitted.values)|>ggplot(aes(x=gc_content,y=log_residuals,color=dnase_peak))+geom_point()
+
+# %%
+
+data_tbl <- data_tbl |> mutate(gc_centered = gc_content - mean(gc_content, na.rm = TRUE))
+
+fit_centered <- lm(logy ~ dnase_peak + gc_centered + dnase_peak * gc_centered, data = data_tbl)
+summary(fit_centered)
+
+# %%
+
+
+data_tbl|>mutate(residuals = fit_centered$residuals,pred = fit_centered$fitted.values)|>ggplot(aes(x=gc_centered,y=residuals))+geom_point()
+
 # ==============================================================================
 # PART 3: MCELREATH WORKFLOW — PARAMETER UNCERTAINTY & PREDICTIONS
 # ==============================================================================
 
-mu_hat <- coef(fit_log_controlled)
-sigma_hat <- vcov(fit_log_controlled)
+mu_hat <- coef(fit_centered)
+sigma_hat <- vcov(fit_centered)
 
 # Draw 1,000 parameter realizations from real MLE variance-covariance matrix
 param_draws <- mvrnorm(n = 1000, mu = mu_hat, Sigma = sigma_hat) %>% as_tibble()
@@ -222,13 +258,18 @@ param_draws <- mvrnorm(n = 1000, mu = mu_hat, Sigma = sigma_hat) %>% as_tibble()
 # %%
 
 # 2. Compute group-wise mean predictions per draw using the actual GC distribution
+# 2. Compute group-wise mean predictions per draw using the actual GC distribution & interaction
 sim_means_df <- map_df(1:nrow(param_draws), function(i) {
-  b0      <- as.numeric(param_draws[i, "(Intercept)"])
-  b_dnase <- as.numeric(param_draws[i, "dnase_peak"])
-  b_gc    <- as.numeric(param_draws[i, "gc_content"])
+  b0         <- as.numeric(param_draws[i, "(Intercept)"])
+  b_dnase    <- as.numeric(param_draws[i, "dnase_peak"])
+  b_gc       <- as.numeric(param_draws[i, "gc_centered"])
+  b_inter    <- as.numeric(param_draws[i, "dnase_peak:gc_centered"])
   
   # Predict across all actual promoter rows for this parameter draw
-  pred_y <- b0 + (b_dnase * data_tbl$dnase_peak) + (b_gc * data_tbl$gc_content)
+  # Formula: b0 + b_dnase*X + b_gc*GC + b_inter*(X * GC)
+  pred_y <- b0 + (b_dnase * data_tbl$dnase_peak) + 
+                (b_gc * data_tbl$gc_centered) + 
+                (b_inter * data_tbl$dnase_peak * data_tbl$gc_centered)
   
   # Calculate empirical group means using the actual covariate distribution
   mean_closed <- mean(pred_y[data_tbl$dnase_peak == 0], na.rm = TRUE)
@@ -240,7 +281,7 @@ sim_means_df <- map_df(1:nrow(param_draws), function(i) {
     "Open" = mean_open,
     diff = as.numeric(mean_open - mean_closed)
   )
-}) %>% 
+}) %>%  
   pivot_longer(
     cols = c("Closed", "Open"),
     names_to = "group",
@@ -249,11 +290,11 @@ sim_means_df <- map_df(1:nrow(param_draws), function(i) {
 
 # %%
 sim_means_df$group <- factor(sim_means_df$group, levels = c("Closed", "Open"))
-data_tbl$dnase_label <- factor(ifelse(data_tbl$dnase_peak == 1, "Open", "Closed"),levels = c("Closed", "Open"))
+data_tbl$dnase_label <- factor(ifelse(data_tbl$dnase_peak == 1, "Open", "Closed"), levels = c("Closed", "Open"))
 
 # 3. Build the visualization combining raw boxplots and connected derived means
 ggplot() +
-  # Layer 1: Raw data boxplots in the background
+  # Layer 1: Raw data violins/boxplots in the background
   geom_violin(
     data = data_tbl, 
     aes(x = dnase_label, y = logy), 
@@ -274,10 +315,10 @@ ggplot() +
   ) +
   theme_minimal(base_size = 14) +
   labs(
-    title = "Empirical Boxplots Meet Model-Implied Counterfactuals",
-    subtitle = "Lines connect derived group-wise means (accounting for actual GC distribution) across 2000 parameter draws",
+    title = "Empirical Distribution Meets Interaction-Aware Counterfactuals",
+    subtitle = "Lines connect derived group-wise means accounting for GC-centering and interaction across 1000 parameter draws",
     x = "Chromatin State",
-    y = "H3K4me3 Fold-Change"
+    y = "log(H3K4me3 Fold-Change)"
   ) +
   theme(
     plot.title = element_text(face = "bold", size = 16),
