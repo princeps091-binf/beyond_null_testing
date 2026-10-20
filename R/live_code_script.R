@@ -213,7 +213,8 @@ summary(fit_interaction)$coefficients
 
 data_tbl|>mutate(inter_residuals = fit_interaction$residuals,inter_pred = fit_interaction$fitted.values,naive_residuals = fit_naive$residuals, naive_pred = fit_naive$fitted.values)|>ggplot(aes(x=gc_content,y=inter_residuals,color=dnase_peak))+geom_point()
 # %%
-data_tbl|>mutate(residuals = fit_controlled$residuals,pred = fit_controlled$fitted.values)|>ggplot(aes(x=pred,y=residuals))+geom_point()
+
+data_tbl|>mutate(residuals = fit_interaction$residuals,pred = fit_interaction$fitted.values)|>ggplot(aes(x=pred,y=residuals))+geom_point()
 
 # %%
 

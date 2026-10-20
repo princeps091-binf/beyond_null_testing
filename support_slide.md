@@ -41,14 +41,14 @@ style: |
 
 - A classical Student’s $t$-test is mathematically identical to a binary ordinary least squares (OLS) regression.
 
-- **Takeaway:** You aren't learning new math; you are just removing the training wheels.
+- **Takeaway:** You aren't learning new math.
 
 ---
 
 # Non-Parametric Bridge
 
-- Because real genomic data introduces a variety of exotism (extreme values, ties, etc) let us simulate data
-
+- Because real genomic data introduces a variety of exotism (extreme values, ties, etc) we fall back to non-parametric tests
+- Regression and non-parametric tests are not equal, but can be equivalent.
 
 ---
 
@@ -114,14 +114,41 @@ fit_controlled <- lm(
 
 **Takeaway:** Multiple regression lets us control technical confounders in plain sight without mutating our target data matrix.
 
+ 
+---
+
+# Part 2.5: Residual Diagnostics
+
+## Looking at residual vs confounders
+
+- Confirm that we have corrected for the systematic bias
+  - Residuals are the observed values minus the model's predictions: the leftover variation after accounting for our covariates.
 
 ---
 
-# Part 2: Residual Diagnostics
+## Residual clustering & interaction terms
+- Plotting residuals vs. confounders revealed:
+  - split and group specific trends
+
+---
+
+- **The Intervention:** group specific trends using interaction terms
+
+```r
+
+fit_interaction <- lm(
+  logy ~ dnase_peak + gc_content + dnase_peak * gc_content, 
+  data = data_tbl
+)
+
+```
+
+---
 
 ## The Funnel of Uncertainty & The Log Transformation
 
-- Plotting residuals against fitted values reveals heteroscedasticity (megaphone funnel).
+- Plotting residuals against fitted values reveals:
+  - heteroscedasticity (megaphone funnel).
 
 ---
 
@@ -133,7 +160,7 @@ fit_controlled <- lm(
 data_tbl <- data_tbl |> mutate(logy = log(active_ip_signal))
 
 fit_log_controlled <- lm(
-  logy ~ dnase_peak + gc_content, 
+  logy ~ dnase_peak + gc_content + dnase_peak * gc_content, 
   data = data_tbl
 )
 
